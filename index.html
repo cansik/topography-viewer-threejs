@@ -66,6 +66,9 @@
 				container.ontouchend = (e) => {
 				    e.preventDefault();
 				};
+
+				document.getElementById("color").style.display = 'none';
+				document.getElementById("depth").style.display = 'none';
 			});
 
 			function createTexture(textureName) {
