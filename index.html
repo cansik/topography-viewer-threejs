@@ -80,9 +80,9 @@
 			function getColors(pixels, x, y, w) {
 				var color = pixels[x + y * w];
 
-				var red = (color & 0xFF0000) >> 16;
+				var blue = (color & 0xFF0000) >> 16;
 				var green = (color & 0x00FF00) >> 8;
-				var blue = (color & 0x0000FF);
+				var red = (color & 0x0000FF);
 
 				return [red, green, blue];
 			};
@@ -128,7 +128,7 @@
 						var vy = colorPixel[1] / 255;
 						var vz = colorPixel[2] / 255;
 
-						color.setRGB( vx, vy, vz );
+						color.setRGB(vx, vy, vz);
 						colors.push( color.r, color.g, color.b );
 					}
 				}
