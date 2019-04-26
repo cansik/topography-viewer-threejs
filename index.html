@@ -41,6 +41,7 @@
 			uniform sampler2D depthMap;
 			uniform float minHeight;
 			uniform float maxHeight;
+			uniform sampler2D shapeMap;
 
 			attribute float size;
 			attribute vec3 customColor;
@@ -63,23 +64,56 @@
 				vec3 pt = position;
 				pt.z += mix(minHeight, maxHeight, luminance);
 
+				// point size by type
+				vec4 shape = texture2D(shapeMap, texcoord);
+				float ps = size;
+
+				// water
+				if(shape.b > 0.9) {
+					ps *= 0.5;
+				}
+
+				// cities
+				if(shape.r > 0.9) {
+					ps *= 2.0;
+				}
+
 				vec4 mvPosition = modelViewMatrix * vec4(pt, 1.0 );
-				gl_PointSize = size * ( 300.0 / -mvPosition.z );
+				gl_PointSize = ps * ( 300.0 / -mvPosition.z );
 				gl_Position = projectionMatrix * mvPosition;
 			}
 		</script>
 
 		<script type="x-shader/x-fragment" id="fragmentshader">
 			uniform sampler2D colorMap;
-			uniform sampler2D texture;
+			uniform sampler2D shapeMap;
+
+			uniform sampler2D discShape;
+			uniform sampler2D triangleShape;
+
+			uniform sampler2D starShape;
+	
 
 			varying vec2 tc;
 			void main() {
 				// read color from color map
-				gl_FragColor = texture2D(colorMap, tc);
+				vec4 color = texture2D(colorMap, tc);
 
 				// clip image
-				gl_FragColor = gl_FragColor * texture2D(texture, gl_PointCoord);
+				gl_FragColor = color * texture2D(triangleShape, gl_PointCoord);
+
+				vec4 shape = texture2D(shapeMap, tc);
+
+				// water
+				if(shape.b > 0.9) {
+					gl_FragColor = color * texture2D(discShape, gl_PointCoord);
+				}
+
+				// cities
+				if(shape.r > 0.9) {
+					gl_FragColor = color * texture2D(starShape, gl_PointCoord);
+				}
+
 				if ( gl_FragColor.a < ALPHATEST ) discard;
 			}
 		</script>
@@ -96,8 +130,8 @@
 
 			var pointSize = 100;
 
-			var planeWidth = 100;
-			var planeHeight = 100;
+			var planeWidth = 200;
+			var planeHeight = 200;
 			var pointSpace = 10;
 
 			// threejs vars
@@ -175,9 +209,14 @@
 					uniforms: {
 						minHeight: { value: minHeight},
 						maxHeight: { value: maxHeight},
-						texture: { value: new THREE.TextureLoader().load( "textures/disc.png" ) },
+
+						discShape: { value: new THREE.TextureLoader().load( "textures/disc.png" ) },
+						triangleShape: { value: new THREE.TextureLoader().load( "textures/triangle.png" ) },
+						starShape: { value: new THREE.TextureLoader().load( "textures/star.png" ) }, 
+
 						depthMap: { value: new THREE.TextureLoader().load( "textures/aargau_depth.png" ) },
-						colorMap: { value: new THREE.TextureLoader().load( "textures/aargau_color.png" ) }
+						colorMap: { value: new THREE.TextureLoader().load( "textures/aargau_color.png" ) },
+						shapeMap: { value: new THREE.TextureLoader().load( "textures/aargau_shape.png" ) },
 					},
 					vertexShader: document.getElementById( 'vertexshader' ).textContent,
 					fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
