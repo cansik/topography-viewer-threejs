@@ -22,19 +22,11 @@
 			a {
 				color: #0080ff;
 			}
-			#textures {
-				visibility: hidden;
-			}
 		</style>
 	</head>
 	<body>
 		<div id="container"></div>
 		<div id="info">Topography PCL Viewer</div>
-
-		<div id="textures">
-			<img id="color" src="textures/aargau_color.png"/>
-			<img id="depth" src="textures/aargau_depth.png"/>
-		</div>
 
 		<script src="js/three.js"></script>
 
@@ -45,19 +37,77 @@
 		<script src="js/jquery-3.4.0.min.js"></script>
 
 
+		<script type="x-shader/x-vertex" id="vertexshader">
+			uniform sampler2D depthMap;
+			uniform float minHeight;
+			uniform float maxHeight;
+
+			attribute float size;
+			attribute vec3 customColor;
+			attribute vec2 texcoord;
+
+			varying vec3 vColor;
+			varying vec2 tc;
+
+			void main() {
+				vColor = customColor;
+				tc = texcoord;
+
+				vec4 depth = texture2D(depthMap, texcoord);
+
+				// calculate luminance
+				vec3 luminanceVector = vec3(0.2125, 0.7154, 0.0721);
+				float luminance = dot(luminanceVector, depth.xyz);
+
+				// lerp z by luminance
+				vec3 pt = position;
+				pt.z += mix(minHeight, maxHeight, luminance);
+
+				vec4 mvPosition = modelViewMatrix * vec4(pt, 1.0 );
+				gl_PointSize = size * ( 300.0 / -mvPosition.z );
+				gl_Position = projectionMatrix * mvPosition;
+			}
+		</script>
+
+		<script type="x-shader/x-fragment" id="fragmentshader">
+			uniform sampler2D colorMap;
+			uniform sampler2D texture;
+
+			varying vec2 tc;
+			void main() {
+				// read color from color map
+				gl_FragColor = texture2D(colorMap, tc);
+
+				// clip image
+				gl_FragColor = gl_FragColor * texture2D(texture, gl_PointCoord);
+				if ( gl_FragColor.a < ALPHATEST ) discard;
+			}
+		</script>
+
+
 		<script>
 			if ( WEBGL.isWebGLAvailable() === false ) {
 				document.body.appendChild( WEBGL.getWebGLErrorMessage() );
 			}
 
 			// edit the map style here:
-			var sampleStep = 5;
-			var maxHeight = 50;
+			var minHeight = 0;
+			var maxHeight = 65;
 
+			var pointSize = 100;
+
+			var planeWidth = 100;
+			var planeHeight = 100;
+			var pointSpace = 10;
+
+			// threejs vars
 			var container, stats;
 			var camera, scene, renderer;
 			var points;
 			var controls;
+
+			var raycaster, intersects;
+			var mouse, INTERSECTED;
 
 			$(window).on("load", function() {
 				init();
@@ -66,33 +116,7 @@
 				container.ontouchend = (e) => {
 				    e.preventDefault();
 				};
-
-				document.getElementById("color").style.display = 'none';
-				document.getElementById("depth").style.display = 'none';
 			});
-
-			function createTexture(textureName) {
-				var img = document.getElementById(textureName);
-				var canvas = document.createElement('canvas');
-				canvas.width = img.width;
-				canvas.height = img.height;
-				canvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
-				return canvas;
-			}
-
-			function getPixels(texture) {
-				return new Int32Array(texture.getContext('2d').getImageData(0, 0, texture.width, texture.height).data.buffer);
-			}
-
-			function getColors(pixels, x, y, w) {
-				var color = pixels[x + y * w];
-
-				var blue = (color & 0xFF0000) >> 16;
-				var green = (color & 0x00FF00) >> 8;
-				var red = (color & 0x0000FF);
-
-				return [red, green, blue];
-			};
 
 			function init() {
 				container = document.getElementById( 'container' );
@@ -106,47 +130,60 @@
 				scene.background = new THREE.Color(0xFFFFFF);
 				scene.fog = new THREE.Fog( 0x050505, 2000, 3500 );
 
-				// load maps
-				var depthTex = createTexture('depth');
-				var colorTex = createTexture('color');
-
-				var depthPixels = getPixels(depthTex);
-				var colorPixels = getPixels(colorTex);
-
-				console.log("Depth Texture Size: " + depthTex.width + " x " + depthTex.height);
-				
 				// create map geometry
 				var geometry = new THREE.BufferGeometry();
 				var positions = [];
 				var colors = [];
+				var sizes = [];
+				var textureCoordinates = [];
 				var color = new THREE.Color();
 
-				for (var x = 0; x < depthTex.width; x += sampleStep) {
-					for (var y = 0; y < depthTex.height; y += sampleStep) {
-						var depthPixel = getColors(depthPixels, x, y, depthTex.width);
-						var colorPixel = getColors(colorPixels, x, y, colorTex.width);
-
-						var vx = x - (depthTex.width / 2);
-						var vy = y - (depthTex.height / 2);
-						var vz = depthPixel[0] / 255 * maxHeight;
+				for (var x = 0; x < planeWidth; x++) {
+					for (var y = 0; y < planeHeight; y++) {
+						// coordinates
+						var vx = (x * pointSpace) - (planeWidth / 2 * pointSpace);
+						var vy = (y * pointSpace) - (planeHeight / 2 * pointSpace);
+						var vz = 0;
 						positions.push(vx, vy, vz);
 
-						var vx = colorPixel[0] / 255;
-						var vy = colorPixel[1] / 255;
-						var vz = colorPixel[2] / 255;
+						// colors
+						var r = 1.0;
+						var g = 1.0;
+						var b = 1.0;
 
-						color.setRGB(vx, vy, vz);
-						colors.push( color.r, color.g, color.b );
+						color.setRGB(r, g, b);
+						colors.push(color.r, color.g, color.b);
+
+						// sizes
+						sizes.push(pointSize);
+
+						// texture coordinates
+						var tx = x / planeWidth;
+						var ty = y / planeHeight;
+						textureCoordinates.push(tx, ty);
 					}
 				}
 				
-				geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
-				geometry.addAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
+				geometry.addAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+				geometry.addAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+				geometry.addAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+				geometry.addAttribute('texcoord', new THREE.Float32BufferAttribute(textureCoordinates, 2));
 				geometry.computeBoundingSphere();
 				
 				// add material to map
-				var material = new THREE.PointsMaterial( { size: 15, vertexColors: THREE.VertexColors } );
-				material.size = 20;
+				var material = new THREE.ShaderMaterial( {
+					uniforms: {
+						minHeight: { value: minHeight},
+						maxHeight: { value: maxHeight},
+						texture: { value: new THREE.TextureLoader().load( "textures/disc.png" ) },
+						depthMap: { value: new THREE.TextureLoader().load( "textures/aargau_depth.png" ) },
+						colorMap: { value: new THREE.TextureLoader().load( "textures/aargau_color.png" ) }
+					},
+					vertexShader: document.getElementById( 'vertexshader' ).textContent,
+					fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
+					alphaTest: 0.9
+				});
+
 				points = new THREE.Points( geometry, material );
 				scene.add( points );
 				
