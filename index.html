@@ -73,9 +73,19 @@
 				return canvas;
 			}
 
-			function getPixel(texture, x, y) {
-				return texture.getContext('2d').getImageData(x, y, 1, 1).data;
+			function getPixels(texture) {
+				return new Int32Array(texture.getContext('2d').getImageData(0, 0, texture.width, texture.height).data.buffer);
 			}
+
+			function getColors(pixels, x, y, w) {
+				var color = pixels[x + y * w];
+
+				var red = (color & 0xFF0000) >> 16;
+				var green = (color & 0x00FF00) >> 8;
+				var blue = (color & 0x0000FF);
+
+				return [red, green, blue];
+			};
 
 			function init() {
 				container = document.getElementById( 'container' );
@@ -93,6 +103,9 @@
 				var depthTex = createTexture('depth');
 				var colorTex = createTexture('color');
 
+				var depthPixels = getPixels(depthTex);
+				var colorPixels = getPixels(colorTex);
+
 				console.log("Depth Texture Size: " + depthTex.width + " x " + depthTex.height);
 				
 				// create map geometry
@@ -103,16 +116,17 @@
 
 				for (var x = 0; x < depthTex.width; x += sampleStep) {
 					for (var y = 0; y < depthTex.height; y += sampleStep) {
+						var depthPixel = getColors(depthPixels, x, y, depthTex.width);
+						var colorPixel = getColors(colorPixels, x, y, colorTex.width);
+
 						var vx = x - (depthTex.width / 2);
 						var vy = y - (depthTex.height / 2);
-						var vz = getPixel(depthTex, x, y)[0] / 255 * maxHeight;
+						var vz = depthPixel[0] / 255 * maxHeight;
 						positions.push(vx, vy, vz);
 
-
-						var pixel = getPixel(colorTex, x, y);
-						var vx = pixel[0] / 255;
-						var vy = pixel[1] / 255;
-						var vz = pixel[2] / 255;
+						var vx = colorPixel[0] / 255;
+						var vy = colorPixel[1] / 255;
+						var vz = colorPixel[2] / 255;
 
 						color.setRGB( vx, vy, vz );
 						colors.push( color.r, color.g, color.b );
