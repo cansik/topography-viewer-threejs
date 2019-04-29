@@ -147,7 +147,11 @@
 				init();
 				animate();
 
-				container.ontouchend = (e) => {
+				document.body.ontouchstart = (e) => {
+				    e.preventDefault();
+				};
+
+				document.body.ontouchend = (e) => {
 				    e.preventDefault();
 				};
 			});
