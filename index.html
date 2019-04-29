@@ -34,6 +34,7 @@
 		<script src="js/WebGL.js"></script>
 		<script src="js/stats.min.js"></script>
 		<script src="js/TrackballControls.js"></script>
+		<script src='js/dat.gui.min.js'></script>
 
 		<script src="js/jquery-3.4.0.min.js"></script>
 
@@ -126,14 +127,14 @@
 			}
 
 			// edit the map style here:
-			var minHeight = 0;
-			var maxHeight = 65;
-
-			var pointSize = 100;
-
-			var planeWidth = 200;
-			var planeHeight = 200;
-			var pointSpace = 10;
+			var settings = {
+				minHeight: 0,
+				maxHeight: 600,
+				pointSize: 500,
+				planeWidth: 500,
+				planeHeight: 500,
+				pointSpace: 50,
+			};
 
 			// threejs vars
 			var container, stats;
@@ -161,7 +162,7 @@
 				container = document.getElementById( 'container' );
 				
 				// setup scene
-				camera = new THREE.PerspectiveCamera( 27, window.innerWidth / window.innerHeight, 5, 3500 );
+				camera = new THREE.PerspectiveCamera(27, window.innerWidth / window.innerHeight, 5, 50000 );
 				camera.position.z = 2750;
 				controls = new THREE.TrackballControls(camera);
 
@@ -177,11 +178,11 @@
 				var textureCoordinates = [];
 				var color = new THREE.Color();
 
-				for (var x = 0; x < planeWidth; x++) {
-					for (var y = 0; y < planeHeight; y++) {
+				for (var x = 0; x < settings.planeWidth; x++) {
+					for (var y = 0; y < settings.planeHeight; y++) {
 						// coordinates
-						var vx = (x * pointSpace) - (planeWidth / 2 * pointSpace);
-						var vy = (y * pointSpace) - (planeHeight / 2 * pointSpace);
+						var vx = (x * settings.pointSpace) - (settings.planeWidth / 2 * settings.pointSpace);
+						var vy = (y * settings.pointSpace) - (settings.planeHeight / 2 * settings.pointSpace);
 						var vz = 0;
 						positions.push(vx, vy, vz);
 
@@ -194,11 +195,11 @@
 						colors.push(color.r, color.g, color.b);
 
 						// sizes
-						sizes.push(pointSize);
+						sizes.push(settings.pointSize);
 
 						// texture coordinates
-						var tx = x / planeWidth;
-						var ty = y / planeHeight;
+						var tx = x / settings.planeWidth;
+						var ty = y / settings.planeHeight;
 						textureCoordinates.push(tx, ty);
 					}
 				}
@@ -212,8 +213,8 @@
 				// add material to map
 				var material = new THREE.ShaderMaterial( {
 					uniforms: {
-						minHeight: { value: minHeight},
-						maxHeight: { value: maxHeight},
+						minHeight: { value: settings.minHeight},
+						maxHeight: { value: settings.maxHeight},
 
 						discShape: { value: new THREE.TextureLoader().load( "textures/disc.png" ) },
 						triangleShape: { value: new THREE.TextureLoader().load( "textures/triangle.png" ) },
@@ -244,6 +245,13 @@
 				// add stats
 				stats = new Stats();
 				container.appendChild( stats.dom );
+
+				// add gui
+				/*
+				var gui = new dat.GUI();
+				gui.add(settings, 'minHeight', 0, 50, 1);
+				gui.add(settings, 'maxHeight', 0, 500, 1);
+				*/
 				
 				// add event lister for resizing
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -287,7 +295,7 @@
 					if ( INTERSECTED != intersects[ 0 ].index ) {
 						attributes.size.array[ INTERSECTED ] = pointSize;
 						INTERSECTED = intersects[ 0 ].index;
-						attributes.size.array[ INTERSECTED ] = pointSize * 5;
+						attributes.size.array[ INTERSECTED ] = 0;
 						attributes.size.needsUpdate = true;
 					}
 				} else if ( INTERSECTED !== null ) {
@@ -296,6 +304,7 @@
 					INTERSECTED = null;
 				}
 				*/
+				
 
 				renderer.render( scene, camera );
 			}
